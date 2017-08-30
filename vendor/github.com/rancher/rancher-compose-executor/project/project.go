@@ -71,6 +71,10 @@ func NewProject(context *Context) *Project {
 	return p
 }
 
+func (p *Project) GetDeleteServiceIds() []string {
+	return p.context.DeleteServiceIds
+}
+
 func (p *Project) Open() error {
 	return p.context.open()
 }
@@ -79,7 +83,6 @@ func (p *Project) Parse() error {
 	p.Name = p.context.ProjectName
 
 	p.Files = p.context.ComposeFiles
-
 	if len(p.Files) == 1 && p.Files[0] == "-" {
 		p.Files = []string{"."}
 	}
@@ -93,6 +96,15 @@ func (p *Project) Parse() error {
 			if err := p.load(file, composeBytes); err != nil {
 				return err
 			}
+		}
+	}
+
+	// p.context.ExistingServiceNames  // key: name, value: serviceId
+	// p.ServiceConfigs                //key: name, value: configs
+
+	for serviceName, _ := range p.context.ExistingServiceNames {
+		if !p.ServiceConfigs.Has(serviceName) {
+			p.context.DeleteServiceIds = append(p.context.DeleteServiceIds, p.context.ExistingServiceNames[serviceName])
 		}
 	}
 

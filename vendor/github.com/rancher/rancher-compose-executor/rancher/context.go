@@ -26,6 +26,7 @@ type Context struct {
 	Uploader     Uploader
 	PullCached   bool
 	Pull         bool
+	Prune        bool
 	Args         []string
 
 	Upgrade        bool
@@ -85,6 +86,17 @@ func (c *Context) open() error {
 	if err != nil {
 		return err
 	}
+
+	c.ExistingServiceNames = map[string]string{}
+
+	for _, serviceId := range stack.ServiceIds {
+		service, err := c.Client.Service.ById(serviceId)
+		if err != nil {
+			return err
+		}
+		c.ExistingServiceNames[service.Name] = serviceId
+	}
+
 	proj, err := c.Client.Project.ById(stack.AccountId)
 	if err != nil {
 		return err
@@ -99,7 +111,6 @@ func (c *Context) LoadStack() (*client.Stack, error) {
 	if c.Stack != nil {
 		return c.Stack, nil
 	}
-
 	projectName := c.sanitizedProjectName()
 	if _, err := c.loadClient(); err != nil {
 		return nil, err

@@ -16,6 +16,9 @@ import (
 	"github.com/rancher/rancher-compose-executor/project/options"
 	"github.com/rancher/rancher-compose-executor/rancher"
 	"github.com/urfave/cli"
+
+	"github.com/rancher/go-rancher/v2"
+	"time"
 )
 
 type RancherProjectFactory struct {
@@ -63,6 +66,7 @@ func (p *RancherProjectFactory) Create(c *cli.Context) (*project.Project, error)
 	context.Interval = int64(c.Int("interval"))
 	context.ConfirmUpgrade = c.Bool("confirm-upgrade")
 	context.Pull = c.Bool("pull")
+	context.Prune = c.Bool("prune")
 
 	return rancher.NewProject(context)
 }
@@ -119,6 +123,10 @@ func UpCommand(factory ProjectFactory) cli.Command {
 			cli.BoolFlag{
 				Name:  "pull, p",
 				Usage: "Before doing the upgrade do an image pull on all hosts that have the image already",
+			},
+			cli.BoolFlag{
+				Name:  "prune",
+				Usage: "Remove services that do not exist in current compose file",
 			},
 			cli.BoolFlag{
 				Name:  "d",
@@ -193,6 +201,33 @@ func ProjectUpAndWait(p *project.Project, waiter options.Waiter, c *cli.Context)
 			fmt.Println(string(contents))
 		}
 		return nil
+	}
+
+	if c.Bool("prune") {
+		url := c.GlobalString("url")
+		accessKey := c.GlobalString("access-key")
+		secretKey := c.GlobalString("secret-key")
+
+		apiClient, err := client.NewRancherClient(&client.ClientOpts{
+			Timeout:   time.Second * 30,
+			Url:       url,
+			AccessKey: accessKey,
+			SecretKey: secretKey,
+		})
+		if err != nil {
+			return err
+		}
+
+		for _, serviceId := range p.GetDeleteServiceIds() {
+			service, err := apiClient.Service.ById(serviceId)
+			if err != nil {
+				return err
+			}
+			err = apiClient.Service.Delete(service)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := p.Create(context.Background(), options.Create{}, c.Args()...); err != nil {
